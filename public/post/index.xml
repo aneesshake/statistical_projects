@@ -6,17 +6,7 @@
     <description>Recent content in Posts on A Hugo website</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Fri, 25 Sep 2020 21:13:14 -0500</lastBuildDate><atom:link href="/post/index.xml" rel="self" type="application/rss+xml" />
-    <item>
-      <title>Want to be on time for an important appointment? You might want to skip the bus. A statistical exploration of public transit delay data</title>
-      <link>/2020/09/25/want-to-be-on-time-for-an-important-appointment-you-might-want-to-skip-the-bus.-a-statistical-exploration-of-public-transit-delay-data/</link>
-      <pubDate>Fri, 25 Sep 2020 21:13:14 -0500</pubDate>
-      
-      <guid>/2020/09/25/want-to-be-on-time-for-an-important-appointment-you-might-want-to-skip-the-bus.-a-statistical-exploration-of-public-transit-delay-data/</guid>
-      <description>Anees Shaikh, 25/09/2020
-AbstractThis is a statistical overview of the available public transit delay data. The purpose of this data is to gain some clarity on the number of delays that plague each mode of transit available in Toronto. This analysis also seeks to gain a sense of the length of the delays and potential relationships between rush hour and number of delays.</description>
-    </item>
-    
+    <lastBuildDate>Fri, 30 Dec 2016 21:49:57 -0700</lastBuildDate><atom:link href="/post/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>A Plain Markdown Post</title>
       <link>/2016/12/30/a-plain-markdown-post/</link>
