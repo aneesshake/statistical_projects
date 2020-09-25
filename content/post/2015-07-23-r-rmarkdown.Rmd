@@ -1,0 +1,427 @@
+---
+title: "Want to be on time for an important appointment? You might want to skip the bus. A statistical exploration of public transit delay data"
+author: "Anees Shaikh"
+date: '2020-09-25T21:13:14-05:00'
+abstract: "This is a statistical overview of the available public transit delay data. The purpose of this data is to gain some clarity on the number of delays that plague each mode of transit available in Toronto. This analysis also seeks to gain a sense of the length of the delays and potential relationships between rush hour and number of delays"
+output: html_document
+github: "https://github.com/aneesshake/statistical_analyses"
+---
+Anees Shaikh, 25/09/2020
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(collapse = TRUE)
+```
+# Abstract
+
+This is a statistical overview of the available public transit delay data. The purpose of this data is to gain some clarity on the number of delays that plague each mode of transit available in Toronto. This analysis also seeks to gain a sense of the length of the delays and potential relationships between rush hour and number of delays.
+
+
+# Introduction
+
+Before you dive into this post, I am going to ask you a question: 
+Which of the 3 modes of transit provided by the Toronto Transit Commission(hereafter referred to as the TTC), do you think has the most delays? Please hold on to your answer and read on to find out what the actual statistics have to say.
+
+
+Like countless other Torontonians, I dread TTC delays. The agony of having to use a shuttle bus when the subway is out of order for 8 stations is palpable. I was motivated to do this analysis for several reasons. 3 years ago, I interned at a city councillor's office where I was responsible for dealing with constituent's problems. While I can't provide an exact number, a lot of these calls would involve public transit and the unreliable nature of it. If anyone reading this has relied on getting to a place for an important appointment, they know just how risky that move is. Having used all of TTC's provided modes of transit, I've always *felt* that while all 3 are perpetually plagued by delays, the subway always has the most delays. However, ask a friend or a stranger on the street, and you'll likely receive a different answer. Motivated by this assumption that everyone has, I set out to answer the question via an empirical approach: Which mode of transit faces the most delays?
+
+The answer to this question by itself, as we will find out, doesn't paint a complete picture. To provide a more comprehensive analysis, I answer a few more questions. Namely: 
+
+1. Which mode of transit has the longest delays?
+
+2. Are there more delays during certain times of the day? 
+    + More specifically, will we see spikes in delays during rush hour? 
+    + Are any observed spikes consistent across the different modes of transit?
+    
+*Alright, great. Now why should I care about this analysis?*
+
+This is a fair question. As individuals we lead increasingly busy lives and only have so much time in a day to consume news or information. Having said that, information about public transit and its problems affect almost every person living in Toronto, and the GTA. Even if they aren't themselves taking transit. I'd argue that investments in public transit have tangible effects on almost all of a city's residents and visitors. Building faster and more reliable public transit requires investments in infrastructure. Even someone who may never set foot in a TTC vehicle will still feel the effect's of transit infrastructure. The construction of a bus lane might have the effect of initially slowing down other surface vehicles but then might later on improve congestion by potentially reducing the number of cars on the road. Suffice to say, everyone should care about public transit. Torontonians even take pride in the TTC(Borkwood, Q1-Q2 Customer Satisfaction Survey Results). 
+
+It is no surprise that Toronto is a booming city. A few facts about Toronto:
+
+
+1. For starters, Toronto is Canada's financial and business capital. 
+
+2. Additionally,it is the "second largest financial centre in North America by employment"(City of Toronto, n.d).
+
+3. Receives 40 million visitors annually.
+
+4. Combined with a wealth of talent and being home to multiple cutting edge AI institutes such as Vector, Toronto is now the "North America's fastest growing technology market and eighth most popular destination for global tech talent"(City of Toronto, n.d).
+
+To continue and support this growth, an efficient and reliable public transit system is key to our success as a city and province. The TTC also announced a 5 year service plan and a 10 year outlook. This plan was done to map out future improvements of the TTC . This plan was constructed in three consultative phases including residents of Toronto. As a result of this plan, TTC identified that reliability, of which delays play a huge part, is a pillar of it's own. This pillar will receive it's own strategic approaches to improve the punctuality of the service. One part of calculating reliability, includes the number of failed trips or trips that were not completed on time. This analysis seeks to derive the latter part to have a solid figure when calculating reliability.
+
+To peform this analysis, I am going to be using statistical methods to draw comparisons between the different variables and our main variable, *delay*. The analysis won't go into great depth for every single, instead it will serve as a good starting point for multiple other analyses. My findings indicate that buses face the highest number of delays, and the longest delay length. While streetcars have fewer delays than subways, the length of their delays are far higher than that of the subway. Additionally, we observe spikes in bus delays during rush hour, with reduced to no spikes in other forms of transit. Finally, we don't find a strong effect between day of the week and number of delays, with an exception of a spike on Thursday for buses. 
+
+All the code for this analysis can be found at my github: https://github.com/aneesshake/statistical_analyses
+
+```{r packages,message=FALSE, echo=FALSE}
+library(plotly)
+library(tidyverse)
+library(blogdown)
+library(opendatatoronto)
+library(skimr)
+library(visdat)
+library(lubridate)
+library(patchwork)
+library(ggplot2)
+```
+
+
+# Data
+
+To perform this analysis, I had to manually join three separate data-sets. The three data-sets combined are: Subway Delay Data, Streetcar Delay Data, and Bus Delay Data. To get a mapping table of codes to code descriptions, I utilized another dataset that contained this sort of mapping. All these data-sets were retrieved from https://open.toronto.ca/. These data-sets are observational data where each record corresponds to a delay. It features the date of the delay, time at which it happened, day, the length of the delay, the gap in service that was caused in the subsequent bus/train/streetcar, and the cause of the delay. These variables will form the core of our analysis. I chose to use only data from the month of June in 2019. This was partly due to an assumption that COVID may have affected things due to increased sanitation efforts. As well, June 2019 represents a more "normal" time to do this analysis. To get some quick information about our data, we often look at something known as *summary statistics*. They provide information such as the number of rows, type of data in each row, the spread of values, the average value of a column, number of missing rows etc.
+
+```{r Loading in Datasets, echo=FALSE, message=FALSE}
+error_codes <- search_packages("TTC Subway Delay Data") %>% list_package_resources() %>% filter(name == "ttc-subway-delay-codes") %>% get_resource()
+
+
+#I couldn't find any ready to use version of this so I made my own mapping table of line to line-name
+line_translations <- tibble("Line" = c("YU", "YU/BD", "SHP", "SRT", "RT", "YUS", "BD"), "name" = c("Yonge-University", "Yonge-University/Bloor-Danforth","Sheppard", "Scarborough RT","Railway-Transit", "Yonge-University/Sheppard","Bloor-Danforth"))
+
+
+# this following block is being written to combine the error codes for SRT and SUB and thus making a mapping table of code to code-descriptions. They were in separate columns, I'm selecting and renaming the relevant columns, and then unioning them to make a neat dataframe
+srt_error_codes <- error_codes %>% select(`CODE DESCRIPTION...7`, `SRT RMENU CODE`) %>% 
+  rename(code_description = `CODE DESCRIPTION...7`, error_code = `SRT RMENU CODE`)
+
+sub_error_codes <- error_codes %>% select(`CODE DESCRIPTION...3`, `SUB RMENU CODE`) %>% 
+  rename(code_description = `CODE DESCRIPTION...3`, error_code = `SUB RMENU CODE`)
+
+final_error_codes <- srt_error_codes %>% union(sub_error_codes)
+
+
+#This is the standard way of pulling data from the opendatatoronto library. 
+subway_delay<- search_packages("TTC Subway Delay Data") %>% #First, looking for packages TTC Subway Delay data, need to specify this as there are more types of delay data that we will be selecting later on
+  list_package_resources() %>% 
+  filter(grepl('ttc-subway-delay-june-2019',name)) %>% 
+  get_resource() %>% 
+  as_tibble() %>% 
+  left_join(final_error_codes, by = c("Code" = "error_code")) %>% left_join(line_translations, by = c("Line" = "Line"))
+subway_delay$transit_type <- c("subway") #adding this variable for grouping purposes
+
+bus_delay_year <- search_packages("TTC Bus Delay Data") %>% #First, looking for packages TTC bus Delay data, need to specify this as there are more types of delay data that we will be selecting later on.
+  list_package_resources() %>% 
+  filter(grepl('ttc-bus-delay-data-2019',name)) %>% 
+  get_resource()
+
+bus_delay <- bus_delay_year[['June 2019']]#retrieving June data onl
+bus_delay$Time <- format(as.POSIXct(bus_delay$Time), format = "%H:%M") #standardizing time in line with subway_delay
+bus_delay$transit_type <- c("bus") #adding this variable for grouping purposes
+
+
+streetcar_delay_year <- search_packages("TTC Streetcar Delay Data") %>% #First, looking for packages TTC streetcar Delay data, need to specify this as there are more types of delay data that we will be selecting later on
+  list_package_resources() %>% 
+  filter(grepl('ttc-streetcar-delay-data-2019',name)) %>% 
+  get_resource()
+
+streetcar_delay <- streetcar_delay_year[["June 2019 "]] #retrieving June data only
+streetcar_delay$Time <- format(as.POSIXct(streetcar_delay$Time), format = "%H:%M")#standardizing time in line with subway_dela
+streetcar_delay$transit_type <- c("streetcar") #adding this variable for grouping purposes
+
+
+
+#The following code blocks involve me selecting and then renaming the columns that I will use for my analysis.
+subway_delay <- subway_delay %>% 
+  select(date = Date, 
+         time = Time, 
+         day = Day, 
+         delay =  `Min Delay`,
+         gap = `Min Gap`, 
+         incident =  code_description, 
+         transit_type)
+
+bus_delay <- bus_delay %>% 
+  select(date = `Report Date`, 
+         time = Time, 
+         day = Day,
+         delay = Delay, 
+         gap = Gap,
+         incident = Incident, 
+         transit_type)
+
+streetcar_delay <- streetcar_delay %>% 
+  select(date = `Report Date`, 
+         time = Time, 
+         day = Day,
+         delay = Delay, 
+         gap = Gap,
+         incident = Incident, 
+         transit_type)
+
+public_transit_delay <- subway_delay %>% union(streetcar_delay) %>% union(bus_delay)
+
+public_transit_delay$time<- public_transit_delay$time %>% as.POSIXct(format = "%H:%M") %>% round_date("30 minutes") %>% format( format = "%H:%M")#rounding time here to make plotting easier later on
+```
+
+```{r}
+public_transit_delay %>% head()
+```
+
+
+I am utilizing the *vis_dat* package to provide a visual summary of our data. At a glance, we can see that have mostly complete data. There are a few missing rows but we can mostly ignore them.
+```{r}
+vis_dat(public_transit_delay)
+```
+
+
+The *skimr* package gives us a more detailed overview, it higlights the different kinds of data, their spread, missing values etc.
+```{r}
+skimr::skim(public_transit_delay)
+```
+
+
+The key detail to highlight here is the histogram for the *delay* variable, it has a noticeable right skew. A histogram essentially shows the distribution of data, the height of the bars represents the amount of data that falls into a certain category.A skew in distribution is when a majority of the data lies towards the right or left side of the graph. To dig a bit deeper into the skew, we're going to be looking at another histogram of the delay variable by the different types of transit.
+
+```{r, echo=FALSE, warning=FALSE}
+public_transit_delay %>% 
+  ggplot(aes(x = delay)) + 
+  geom_histogram(binwidth = 25) + 
+  facet_grid(~transit_type)  + 
+  labs(title = "A histogram of the delay variable by type of transit",
+       x = "Delay(in minutes)",
+       y = "Number of rows",
+       caption = "Source: Open Data Toronto",
+       tag = "[1]") + theme_light()
+```
+There are a couple of notable findings here. Firstly, while all three transit types have a right skew, meaning most of the delays are close to 0, Bus and streetcar have a few rows where the delay is higher than 0. Bus even has a few rows where the delay is close to 999. Let us arbitrarily pick a length of time for our delays, past which most readers would agree represents an extremely long delay. For this instance, let's go with 180 minutes
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, include=FALSE}
+public_transit_delay %>% filter(delay > 180) %>% group_by(transit_type) %>% tally(name = "number of rows")
+```
+This means that there were 122 delays in June, when the length of the delay exceeded 3 hours.
+
+```{r, echo=FALSE}
+
+#constructing this DF that is used a few times to reduce duplicate code, just calculating simple aggregate statistics
+transit_delay_statistics <- 
+  public_transit_delay %>% 
+  group_by(transit_type) %>% 
+  summarise(average_delay = mean(delay,na.rm = TRUE), 
+            num_delays = n(),
+            median_delay = median(delay, na.rm = TRUE))
+```
+# Which form of transit has the most delays?
+Now we finally get to answering our first question.(Hint: move our your mouse over the graphs to see the actual number)
+
+```{r, echo=FALSE}
+num_delays <- transit_delay_statistics %>% 
+  ggplot(aes(x = num_delays, y = transit_type, fill = transit_type)) + 
+  geom_col() +
+  coord_flip() + 
+  labs(title = "The number of delays by transit type [2]", 
+       y = "Type of Transit", 
+       x = "Number of delays",
+       subtitle = "This data is for the month of June")
+
+ggplotly(num_delays, tooltip = "num_delays") %>% layout( xaxis = list(title = "Source: Open Data Toronto") )
+
+```
+As you can see, buses have the highest number of delays. Buses and streetcars fare much, with streetcars clinching this initial victory. Now you might be quick to jump to the conclusion that streetcars are the most reliable form of public transit. Taking this graph at face value, it is a fairly reasonable conclusion. There is, however, far more colour and detail we can before we arrive at that conclusion. So, while streetcars have the least number of delays, just how long is each delay? 
+```{r, echo=FALSE}
+average_delay <- transit_delay_statistics %>% 
+  ggplot(aes(x = average_delay, 
+             y = transit_type,
+             fill = transit_type)) + 
+  geom_col() +
+  coord_flip() + 
+  labs(title = "Average delay by Transit Type", 
+       x = "Average Delay(in minutes)", 
+       y = "Type of Transit",
+       caption =  "Source: Open Data Toronto",
+       tag = "[3]")
+
+
+
+median_delay <- transit_delay_statistics %>% 
+  ggplot(aes(x = median_delay, 
+             y = transit_type,
+             fill = transit_type)) + 
+  geom_col() + 
+  coord_flip() + 
+  labs(title = "Median delay by Transit Type", 
+       x = "Median Delay(in minutes)", 
+       y = "Type of Transit",
+       caption =  "Source: Open Data Toronto",
+       tag = "[4]")
+
+average_delay + median_delay
+```
+In the above graph([3]), we observe that streetcars on average have much longer delays, with subway delays being less than 5 minutes. Buses are again on top, with just a hair under an average of 25 minutes. While streetcar delays aren't as frequent as subway delays, they are longer. Now, we've established a few facts:
+
+1. Buses have the most and longest delays
+
+2. Streetcars have fewer delays than the Subway, but have longer duration delays.
+
+The next question we ought to ask, is the mean a good value to gauge the delay a patron is likely to face? I argue that it is not. Instead, we ought to be looking at the median value.
+
+What is the difference between mean and median?
+
+The mean is simply the average of the values, you sum the values and then divide it by the number of values present. The median, looks at the value that appears most frequently, or the middle value. To illustrate the difference, let us look at at some simulated grocery bill data. Say for the month of June, your grocery bill on separate occasions looks like :- \$10, \$11, \$10, \$9, \$10. Clearly, you are a well disciplined shopper that mostly sticks to their budget. For that month, your average is (10 + 11 + 10 + 9 + 10)/(5), \$10. The median for this month would also be \$10. So far, there is no appreciable difference between the mean and median. Now, let's consider that instead of spending \$10 on your last shopping trip in June, you come across a fantastic deal on Cake Mix and protein powder and decide to stock up. This makes your last shopping trip bill \$100. When we recalculate this average, (10 + 11 + 10 + 9 + 100)/(5) = 28. That is quite a bit more than what you would've spent otherwise. The median is still \$10, which you'd argue is closer to your actual spending habits. In your first bill, there was a fairly normal distribution. In the second bill,there was a right skew, meaning most of your spending is towards the left side of the graph. In the second bill, you had one outlier that was greatly increasing your average.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+spending <- tibble("reasonable" = c(10,9,10,10,11,10,9,9,10,10,11,10,9,10), "erratic_spending" = c(9,10,10,11,10,9,10,9,10,10,11,10,9,100))
+
+normal_spending <- spending %>% 
+  ggplot(aes(x = reasonable)) + 
+  geom_histogram() + 
+  labs(title = "Monthly grocery shopping expenses",
+       x ="Money spent",
+       y = "Number of times",
+       caption = "Source: simulated data",
+       tag = "[9]")
+excessive_spending <- spending %>% 
+  ggplot(aes(x = erratic_spending)) + 
+  geom_histogram() + 
+  labs(title = "Monthly grocery shopping expenses",
+       x ="Money spent",
+       y = "Number of times",
+       caption = "Source: simulated data",
+       tag = "[8]")
+normal_spending + excessive_spending
+```
+
+
+Now taking this back to our delay data, does the mean make sense here? We are presented with highly skewed data, with some incidents that fall outside the majority of the distribution. For these reasons, it would make more sense to go with the median delay. This has a few effects, notably it drops the delay numbers by quite a bit. We see that the most commonly occurring delays are roughly half of what the average delay is. For the subway, this effectively means that most of the delays don't affect arrival times at all. We should often be skeptical when presented with averages, it doesn't tell us too much about the underlying distribution of the data. 
+
+TTC puts out a satisfaction survey where respondents are surveyed on multiple categories. These categories are broken down by the mode of transit and the results are presented as such. Some of the most influential factors that drive customer satisfaction are wait times. In the 2017 customer satisfaction survey, respondents did not have a positive view of the wait times that are associated with using the bus and the streetcar. Surprisingly, Wait times were not seen as an issue while using the subway with respondents reporting an 80% satisfaction with the subway wait times. Our conclusions of wait times seem to support this survey as both the bus and the streetcar face long wait times in comparison to the subway. For more recent numbers, the TTC publishes a daily customer service report where they display the target and actual punctual numbers. The overall trends indicate similar results, meeting their target for subway but failing to meet their bus and streetcar goals.
+
+
+# Am I going to be late for work or late when I get home?
+
+The next question we're going to be asking is, is there an effect between time of day and the number of delays? To illustrate this, let's plot the time of day and the number of delays that occur within that time as another histogram.
+
+```{r, echo=FALSE, warning=FALSE}
+time_delay<- public_transit_delay %>% 
+  ggplot(aes(x = time)) + 
+  geom_histogram(stat = "count")+ 
+  facet_grid(~transit_type) + 
+  coord_flip() + 
+  labs(title = "Do certain timeblocks have more delays?",
+       subtitle = "Move your cursor over the data to see the number of delays",
+       caption = "Public transit delay data") + theme(axis.title.y = element_blank()) 
+
+                                
+                                
+ggplotly(time_delay) %>% 
+  layout(title = "Do certain timeblocks have more delays?[5]", 
+         xaxis = list(title = "Number of delays"),
+         yaxis = list(title = "Time of day"))
+
+```
+There appears to be some spikes around the morning rush hour(6:00AM - 9:30AM) and the late afternoon rush starting at 14:00PM and then tapering off after 17:00PM for buses. Interestingly however, this trend doesn't seem nearly as pronounced in streetcars or subways. This is certainly an area for continued research, there are perhaps underlying variables that are influencing such spikes.
+
+# Are delays more prominent during weekdays or weekends?
+
+
+```{r, echo=FALSE, warning=FALSE}
+public_transit_delay %>% 
+  ggplot(aes(x = day)) + 
+  geom_histogram(stat = "count")+ 
+  facet_grid(~transit_type) + 
+  coord_flip() + 
+  labs(title = "Number of delays by transit type over different days of the week",
+       x = "Day of the week",
+       y = "Number of delays",
+       caption = "Source: Open Data Toronto",
+       tag = "[6]")
+```
+Apart from a spike on Thursday for buses, the number of delays seems fairly consistent across different days and transit types.
+
+# Getting to the root cause
+
+What exactly is the cause of those delays?
+
+```{r, echo=FALSE}
+public_transit_delay %>% 
+  group_by(incident, transit_type) %>% 
+  tally() %>% #aggregating and then counting the numebr of incidences
+  group_by(transit_type) %>% 
+  arrange(desc(n), transit_type) %>% #arranging it like this so I can retrieve the top 5 by each transit_type and count
+  slice(1:5) %>% 
+  ggplot(aes(x = incident, y = n)) + 
+  geom_col() + 
+  facet_grid(~transit_type) + 
+  coord_flip() + 
+  theme_light() +
+  labs(title = "Freq breakdown of the cause of delays",
+       x = "Cause of delay",
+       y = "Number of delay",
+       caption = "Source: Open Data Toronto",
+       tag = "[7]")
+```
+In the above graph, we have a frequency breakdown of the cause of delays by the different types of transit. It is important to bear in mind that error codes are not the same across different types of transit. The subway uses a different set of codes, thus the lack of data in the Mechanical category for the subway does not mean that there are no delays caused by mechanical issues. Instead, that code is likely broken down into several other codes. Additionally, these are the top 5 causes. Others will filtered out to focus on the most prevalent issues.
+
+# Weaknesses and next steps:
+
+* A few immediate next steps can be identified. For starters, it would be interesting to see year-over-year(YOY) trends in the variables outlined(number of delays, severity). This would be a good metric for TTC as they can identify whether they are reducing the number of delays and the severity of delays. Furthermore, by understanding the distribution of the cause of the delays, TTC will be able to assess weaknesses in their own system. It could have implications on upgrading their trains and buses, increasing the number of back-up trains. 
+
+
+* COVID-19 has inexplicably affected every part of our lives, transportation is no different. It would be interesting to see how some of the policies that have come about as a result of COVID-19. For example, has the disinfection process reduced the number of buses that can service a route? The reduced number of patrons might call for an increase in the number of vehicles that are in use, does this increase in number of vehicles translate to an increase in delays?
+
+
+* Having interned as a Data Scientist at a product focused tech company, I've seen analyses of this kind end up powering multiple other products. I think this analysis opens the door to several other analysis that could be used in multiple ways. For example, we explored an effect of time on delays. This information could be used as a predictor in a route recommendation app/model. Using this variable, it might advise you to use a different form of transport or walk. This kind of recommendation is featured in apps like Waze. I'd say that a lot of us intuitively do this as well, we may drive on the 401 during certain times of the day, notice that it always has a lot of traffic at these times, and then elect to use an alternate route or alternate form of transit. Another application would be for the TTC. If they know that certain routes are more prone to having certain kinds of failures, it allows them to predict ahead of time and make the appropriate preparations for such an event. Perhaps they identify that certain bus routes are prone to mechanical failures, and thus they either increase the number of buses servicing the area or improve the mechanical reliability of the vehicles.
+
+
+* A huge caveat to this entire analysis is the lack of context, it exists at a highly generalized level.There is little context to the number of total transit delays in a given month, and ultimately, reliability cannot be provided. In other words, without knowing the total number of trips that were run in a given month, a delay statistic has little meaning. If there were a million trips in a month, all our delay statistics lose their relevance as clearly, the incidents are far and few beyond. That said, without knowing this information, we wouldn't be able to qualify the degree of reliability of the service
+
+* The difference between the number of delays for each transit type could very well be attributed to a higher number of bus trips being provided in a month. This higher representation would lend itself to an increased number of delays in a given month without necessarily being any more delay prone than other transit types. Secondly, a more detailed view of the delays, e.g: a cut of this data with the various bus routes or train lines. We might find that the data would reveal different trends at certain levels. I would also caution against this rabbithole of different cuts, as it could essentially lead to a form of *P-Hacking/Data Dredging*. An easier to understand but not precise explanation of P hacking is that it is a practise where a researcher may keep splitting the data into different kinds of cuts(view of data by different filters) until they eventually find some sort of correlation or *significant* result. My favourite illustration of p-hacking is this xkcd comic: https://www.explainxkcd.com/wiki/index.php/882:_Significant. 
+
+
+
+
+
+
+# References
+
+- Bryan, Jennifer and Jim Hester, 2020, ‘What they Forgot to Teach You About R': https://rstats.wtf/debugging-r-code.html.
+
+- Wickham, Hadley, and Garrett Grolemund, 2017, R for Data Science: https://r4ds.had.co.nz/.
+
+- Tierney N (2017). “visdat: Visualising Whole Data Frames.” _JOSS_, *2*(16), 355. doi: 10.21105/joss.00355 (URL:
+https://doi.org/10.21105/joss.00355), <URL: http://dx.doi.org/10.21105/joss.00355>.
+
+- Wickham et al., (2019). Welcome to the tidyverse. Journal of Open Source Software, 4(43), 1686,
+https://doi.org/10.21105/joss.01686
+  
+- Sharla Gelfand (2020). opendatatoronto: Access the City of Toronto Open Data Portal. R package version 0.1.3.
+https://CRAN.R-project.org/package=opendatatoronto
+
+- H. Wickham. ggplot2: Elegant Graphics for Data Analysis. Springer-Verlag New York, 2016.
+
+- C. Sievert. Interactive Web-Based Data Visualization with R, plotly, and shiny. Chapman and Hall/CRC Florida, 2020.
+
+- Elin Waring, Michael Quinn, Amelia McNamara, Eduardo Arino de la Rubia, Hao Zhu and Shannon Ellis (2020). skimr:
+Compact and Flexible Summaries of Data. R package version 2.1.2. https://CRAN.R-project.org/package=skimr
+
+- Garrett Grolemund, Hadley Wickham (2011). Dates and Times Made Easy with lubridate. Journal of Statistical Software, 40(3),
+  1-25. URL http://www.jstatsoft.org/v40/i03/.
+
+- Thomas Lin Pedersen (2020). patchwork: The Composer of Plots. R package version 1.0.1.
+  https://CRAN.R-project.org/package=patchwork
+
+- City of Toronto. (2018, December 04). Industry Sector Support. Retrieved September 25, 2020, from https://www.toronto.ca/business-economy/industry-sector-support/
+
+- 5-Year Service Plan & 10-Year Outlook, www.ttc.ca/About_the_TTC/Projects/5_year_plan_and_10_y/index.jsp.
+
+- TTC Subway Delay Data. (2020). Retrieved September 25, 2020, from
+    <https://open.toronto.ca/dataset/ttc-subway-delay-data/>
+- TTC Streetcar Delay Data. (2020). Retrieved September 25, 2020, from
+    <https://open.toronto.ca/dataset/ttc-streetcar-delay-data/>
+- TTC Bus Delay Data. (2020). Retrieved September 25, 2020, from
+    <https://open.toronto.ca/dataset/ttc-bus-delay-data/>
+
+- Daily Customer Service Report, www.ttc.ca/Customer_Service/Daily_Customer_Service_Report/index.jsp.
+
+- Borkwood, Arthur. “Q1 – Q2 2017 Customer Satisfaction Survey Results .” TTC, 5 Sept. 2017, ttc.ca.
+
+
+```{r References,echo=FALSE}
+
+citation("tidyverse")
+citation("opendatatoronto")
+citation("ggplot2")
+citation("skimr")
+citation("blogdown")
+citation("visdat")
+citation("lubridate")
+citation("patchwork")
+citation("plotly")
+```
+
