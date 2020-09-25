@@ -1,12 +1,12 @@
 ---
 title: "Want to be on time for an important appointment? You might want to skip the bus. A statistical exploration of public transit delay data"
 author: "Anees Shaikh"
-date: '2020-09-25T21:13:14-05:00'
+date: '2020-09-24T21:13:14-05:00'
 abstract: "This is a statistical overview of the available public transit delay data. The purpose of this data is to gain some clarity on the number of delays that plague each mode of transit available in Toronto. This analysis also seeks to gain a sense of the length of the delays and potential relationships between rush hour and number of delays"
 output: html_document
 github: "https://github.com/aneesshake/statistical_analyses"
 ---
-Anees Shaikh, 25/09/2020
+Anees Shaikh, 24/09/2020
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE)
 ```
